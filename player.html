@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title></title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#fff; font-family:"Segoe UI","Microsoft YaHei",sans-serif; }
+  .adcard { width:100%; height:100%; display:flex; flex-direction:column; background:#fff; overflow:hidden; position:relative; }
+  /* 视频区：占满顶部，右下角压一行皮肤文案 */
+  .vbox { position:relative; flex:0 0 auto; background:#000; order:2; }
+  .vbox video, .vbox iframe { width:100%; height:100%; border:0; display:block; background:#000; }
+  .dragbar {
+    position:absolute; top:0; left:0; right:0; height:26px; z-index:30;
+    cursor:grab; background:transparent;
+  }
+  .dragbar:active { cursor:grabbing; }
+  .vbox .vtag {
+    position:absolute; left:10px; bottom:8px; font-size:11px; color:#fff;
+    background:rgba(0,0,0,.55); padding:2px 8px; border-radius:3px; white-space:nowrap;
+  }
+  /* 右上角悬浮关闭钮 */
+  .xbtn {
+    position:absolute; top:8px; right:8px; width:24px; height:24px; border-radius:50%;
+    background:rgba(0,0,0,.45); color:#fff; border:none; font-size:13px; line-height:24px;
+    cursor:pointer; text-align:center; z-index:10;
+  }
+  .xbtn:hover { background:rgba(0,0,0,.75); }
+  /* 内容区 */
+  .body { flex:0 0 auto; display:flex; flex-direction:column; padding:14px 14px 12px; order:1; }
+  .row { display:flex; align-items:flex-start; gap:10px; }
+  .ico { width:38px; height:38px; flex:0 0 auto; }
+  .txt { flex:1 1 auto; }
+  .big { font-size:17px; font-weight:700; color:#1a1a1a; line-height:1.35; }
+  .sub { font-size:12px; color:#666; line-height:1.55; margin-top:5px; }
+  .btns { display:flex; justify-content:flex-end; gap:8px; padding:8px 14px 10px; background:#fff; order:3; }
+  .btn { padding:7px 18px; font-size:13px; font-weight:600; border-radius:4px; border:none; cursor:pointer; }
+  .btn.ghost { background:#f0f0f0; color:#444; }
+  .btn.primary { background:#0078d4; color:#fff; }
+  /* 底部细进度条 */
+  .bar { flex:0 0 auto; height:4px; background:#eee; order:4; }
+  .bar .fill { height:100%; width:0; background:#0078d4; }
+  .bar .ptext { position:absolute; } /* 占位不用 */
+
+  /* ===== 皮肤差异化 ===== */
+  .adcard.skin-antivirus { border:1px solid #eec9c9; }
+  .adcard.skin-antivirus .body, .adcard.skin-antivirus .btns { background:#fff6f6; }
+  .adcard.skin-uac { border:2px solid #b9c3cd; }
+  .adcard.skin-uac .body { background:#fbfcfd; }
+  .adcard.skin-network .body, .adcard.skin-network .btns { background:#fafafa; }
+  .adcard.skin-xp { border:2px solid #0f6cb6; }
+  .adcard.skin-xp .body, .adcard.skin-xp .btns { background:#ece9d8; }
+  .adcard.skin-xp .big { color:#0f6cb6; }
+  .adcard.skin-edge .body, .adcard.skin-edge .btns { background:#ffffff; }
+  .adcard.skin-task .body, .adcard.skin-task .btns { background:#f4f6f9; }
+</style>
+</head>
+<body>
+<div class="adcard">
+  <div class="dragbar" id="dragbar" title="按住拖动"></div>
+  <button class="xbtn" id="xbtn" title="关闭">✕</button>
+  <div class="body">
+    <div class="row">
+      <svg class="ico" id="ico" viewBox="0 0 32 32"></svg>
+      <div class="txt">
+        <div class="big" id="m-big"></div>
+        <div class="sub" id="m-sub"></div>
+      </div>
+    </div>
+  </div>
+  <div class="vbox" id="vbox">
+    <div class="vtag" id="vtag"></div>
+  </div>
+  <div class="btns">
+    <button class="btn ghost" id="b-cancel">关闭</button>
+    <button class="btn primary" id="b-ok">确定</button>
+  </div>
+  <div class="bar"><div class="fill" id="bar-fill"></div></div>
+</div>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const videoUrl = qs.get('url') || '';
+const skinName = qs.get('skin') || 'security';
+const sizeName = qs.get('size') || 'm';
+const mode = qs.get('type') || 'video';
+const VBOX_H = { s: 170, m: 225, l: 290 }[sizeName] || 225;
+const NOVEL_H = { s: 260, m: 340, l: 420 }[sizeName] || 340;
+
+const SKINS = {
+  security: {
+    tag: 'Windows 安全中心 · 后台修复中',
+    big: '你的设备存在风险',
+    sub: '安全中心检测到潜在威胁，正在后台修复，请勿关闭此窗口。',
+    ok: '立即扫描', cancel: '关闭',
+    primary: '#e81123', ghost: '#f5f5f5',
+    ico: '<path fill="#e81123" d="M16 2l12 4v10c0 7-5 13-12 15C9 29 4 23 4 16V6l12-4z"/><path fill="#fff" d="M16 8l7 2.3V16c0 4.4-3.2 8.3-7 9.7-3.8-1.4-7-5.3-7-9.7v-5.7L16 8z"/>',
+    labels: ['正在扫描系统文件...','正在检查注册表...','正在扫描进程...','正在修复威胁...']
+  },
+  update: {
+    tag: 'Windows 更新 · 请勿关机',
+    big: '正在配置更新',
+    sub: '更新将在后台自动完成，这可能需要几分钟，请勿关闭计算机。',
+    ok: '稍后重启', cancel: '关闭',
+    primary: '#0078d4', ghost: '#f5f5f5',
+    ico: '<circle cx="16" cy="16" r="14" fill="#0078d4"/><path d="M16 9v8l6 4" stroke="#fff" stroke-width="2" fill="none"/>',
+    labels: ['正在下载更新...','正在安装功能...','正在配置组件...','正在优化系统...']
+  },
+  disk: {
+    tag: '本地磁盘 (C:) · 空间不足',
+    big: '磁盘空间不足',
+    sub: 'C 盘可用空间不足，正在分析占用并清理临时文件，请稍候。',
+    ok: '磁盘清理', cancel: '关闭',
+    primary: '#f59e0b', ghost: '#f5f5f5',
+    ico: '<rect x="4" y="10" width="24" height="14" rx="2" fill="#f59e0b"/><rect x="8" y="14" width="16" height="2" fill="#fff"/><rect x="8" y="18" width="10" height="2" fill="#fff"/>',
+    labels: ['正在分析磁盘空间...','正在扫描临时文件...','正在计算可回收空间...']
+  },
+  ad: {
+    tag: '限时活动 · 名额有限',
+    big: '恭喜！您被抽中为幸运用户',
+    sub: '您已获得一次免费领取豪华礼品的机会，点击领取，先到先得！',
+    ok: '立即领取', cancel: '关闭',
+    primary: '#ff6b6b', ghost: '#f5f5f5',
+    ico: '<circle cx="16" cy="16" r="14" fill="#ff6b6b"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-weight="bold">!</text>',
+    labels: ['正在加载奖品...','即将揭晓...','正在核对资格...']
+  },
+  antivirus: {
+    tag: '安全防护 · 实时监控',
+    big: '检测到 3 项安全威胁',
+    sub: '建议立即处理以保护电脑安全。处理过程在后台进行，不影响其他程序。',
+    ok: '立即处理', cancel: '稍后',
+    primary: '#d9534f', ghost: '#f7f7f7',
+    ico: '<path fill="#d9534f" d="M16 2l12 4v10c0 7-5 13-12 15C9 29 4 23 4 16V6l12-4z"/><path fill="#fff" d="M16 9c-1.2 0-2.1.9-2.1 2.1v.6c0 .4.3.7.7.7.4 0 .7-.3.7-.7v-.6c0-.4.4-.7.8-.7s.8.3.8.7v.6c0 .4.3.7.7.7.4 0 .7-.3.7-.7v-.6c0-1.2-.9-2.1-2.1-2.1zm0 4.4c-.6 0-1 .4-1 .9s.4.9 1 .9 1-.4 1-.9-.4-.9-1-.9z"/>',
+    labels: ['正在隔离威胁文件...','正在修复注册表项...','正在更新病毒库...','威胁已隔离，系统安全']
+  },
+  uac: {
+    tag: '用户账户控制 · 请确认',
+    big: '是否允许此应用对你的设备进行更改？',
+    sub: '此操作需要管理员权限。已验证发布者身份，请确认是否继续。',
+    ok: '是', cancel: '否',
+    primary: '#0078d4', ghost: '#f0f0f0',
+    ico: '<path fill="#f0ad4e" d="M16 3l11 4v8c0 5.8-4.1 10.4-11 13C9.1 25.4 5 20.8 5 15V7l11-4z"/><path fill="#fff" d="M16 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.5 1.2 2.7 2.7 2.7s2.7-1.2 2.7-2.7c0-1.5-1.2-2.7-2.7-2.7zm0 5.8c-1.8 0-5.4 1.1-5.4 3.7v1.1h10.8v-1.1c0-2.6-3.6-3.7-5.4-3.7z"/>',
+    labels: ['正在验证管理员权限...','正在检查发布者证书...','操作记录已写入安全日志']
+  },
+  network: {
+    tag: '网络诊断 · 连接异常',
+    big: '网络连接异常',
+    sub: '无法访问部分服务，正在自动检测网络配置并尝试修复，请稍候。',
+    ok: '重新连接', cancel: '取消',
+    primary: '#e67e22', ghost: '#f5f5f5',
+    ico: '<path fill="#e67e22" d="M16 21.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm7.4-8.9c-4.1-4.1-10.7-4.1-14.8 0l2.1 2.1c2.9-2.9 7.7-2.9 10.6 0l2.1-2.1zm-4.2 4.2c-1.8-1.8-4.6-1.8-6.4 0L16 19.4l2.1-2.1c1.2-1.2 3.1-1.2 4.2 0l2.1-2.1z"/>',
+    labels: ['正在诊断网络配置...','正在检查 DNS 解析...','正在重置网络适配器...','网络连接已恢复']
+  },
+  xp: {
+    tag: '系统消息 · Windows XP',
+    big: '系统检测到异常项目',
+    sub: '请选择操作以继续。此消息来自 Windows XP 系统服务。',
+    ok: '确定', cancel: '取消',
+    primary: '#0f6cb6', ghost: '#eef3fb',
+    ico: '<circle cx="16" cy="16" r="14" fill="#0f6cb6"/><path fill="#fff" d="M16 8c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2s2-.9 2-2v-8c0-1.1-.9-2-2-2zm0 14.5c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5-.7-1.5-1.5-1.5z"/>',
+    labels: ['正在检查系统组件...','正在验证系统文件...','正在收集错误信息...']
+  },
+  edge: {
+    tag: 'Microsoft Edge · 安全提示',
+    big: '此网站已被安全拦截',
+    sub: '您访问的网页存在潜在风险，Edge 已阻止此页面加载以保护您的设备。',
+    ok: '了解详情', cancel: '关闭',
+    primary: '#0078d4', ghost: '#f5f5f5',
+    ico: '<path fill="#0f9d58" d="M16 3l12 4v8c0 7-5 13-12 15-7-2-12-8-12-15V7l12-4z"/><path fill="#fff" d="M16 9c-3.3 0-6 2.7-6 6 0 2 .9 3.7 2.3 4.8l-1.4 1.9c-.1.1 0 .3.2.3h7.8c.2 0 .3-.2.2-.3l-1.4-1.9C19.1 18.7 22 17 22 15c0-3.3-2.7-6-6-6z"/>',
+    labels: ['正在分析页面风险...','正在匹配恶意特征库...','安全拦截已生效']
+  },
+  task: {
+    tag: '任务计划程序 · 已启动',
+    big: '定时维护任务已启动',
+    sub: '系统将在后台执行例行维护，期间不影响其他程序运行。',
+    ok: '查看详情', cancel: '关闭',
+    primary: '#4a5568', ghost: '#f2f4f7',
+    ico: '<circle cx="16" cy="16" r="13" fill="none" stroke="#4a5568" stroke-width="3"/><path fill="#4a5568" d="M16 9v7l5 3"/>',
+    labels: ['正在初始化维护任务...','正在清理系统缓存...','维护任务执行中...']
+  }
+};
+const skin = SKINS[skinName] || SKINS.security;
+
+document.querySelector('.adcard').classList.add('skin-' + skinName);
+
+document.getElementById('ico').innerHTML = skin.ico;
+document.getElementById('m-big').textContent = skin.big;
+document.getElementById('m-sub').textContent = skin.sub;
+document.getElementById('vtag').textContent = skin.tag;
+document.getElementById('b-ok').textContent = skin.ok;
+document.getElementById('b-cancel').textContent = skin.cancel;
+document.getElementById('b-ok').style.background = skin.primary;
+
+// ===== 视频嵌入 =====
+function buildEmbed(rawUrl) {
+  const bv = rawUrl.match(/(?:bilibili\.com\/video\/|b23\.tv\/)([A-Za-z0-9]{8,})/);
+  if (bv) return { type: 'iframe', src: 'https://player.bilibili.com/player.html?bvid=' + bv[1] + '&autoplay=1&high_quality=1&danmaku=0' };
+  const yt = rawUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
+  if (yt) return { type: 'iframe', src: 'https://www.youtube.com/embed/' + yt[1] + '?autoplay=1&rel=0' };
+  if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(rawUrl)) return { type: 'video', src: rawUrl };
+  return { type: 'iframe', src: rawUrl };
+}
+
+const vbox = document.getElementById('vbox');
+if (mode === 'novel') {
+  vbox.style.height = NOVEL_H + 'px';
+  vbox.style.background = '#fff';
+} else {
+  vbox.style.height = VBOX_H + 'px';
+}
+const embed = buildEmbed(videoUrl);
+if (embed.type === 'video') {
+  const v = document.createElement('video');
+  v.src = embed.src; v.autoplay = true; v.controls = true; v.loop = true; v.playsInline = true;
+  vbox.insertBefore(v, vbox.firstChild);
+} else {
+  const f = document.createElement('iframe');
+  f.src = embed.src;
+  f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+  f.allowFullscreen = true;
+  vbox.insertBefore(f, vbox.firstChild);
+}
+
+// ===== 假进度条 =====
+let pct = 0;
+setInterval(() => {
+  pct += Math.random() * 2.5;
+  if (pct > 100) pct = 0;
+  document.getElementById('bar-fill').style.width = pct + '%';
+}, 600);
+
+// ===== 拖动窗口（通过 chrome.webview 通知宿主移动窗体） =====
+(function () {
+  const bar = document.getElementById('dragbar');
+  if (!bar) return;
+  let drag = null;
+  bar.addEventListener('pointerdown', e => {
+    drag = { sx: e.clientX, sy: e.clientY };
+    bar.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    if (window.chrome && window.chrome.webview) {
+      try { window.chrome.webview.postMessage({ type: 'move', dx, dy }); } catch (err) { }
+    }
+    drag.sx = e.clientX; drag.sy = e.clientY;
+  });
+  const end = () => { drag = null; };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+})();
+
+// ===== 关闭（window.close 触发宿主的 WindowCloseRequested） =====
+function quit() { try { window.close(); } catch (e) { location.href = 'about:blank'; } }
+document.getElementById('xbtn').addEventListener('click', quit);
+document.getElementById('b-cancel').addEventListener('click', quit);
+document.getElementById('b-ok').addEventListener('click', quit);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' || (e.ctrlKey && (e.key === 'q' || e.key === 'Q'))) quit();
+});
+
+// ===== 窗口高度自适应内容（去掉底部空白） =====
+setTimeout(() => {
+  if (window.chrome && window.chrome.webview) {
+    try {
+      const sum = ['body', 'vbox', 'btns', 'bar'].reduce((acc, cls) =>
+        acc + (document.querySelector('.' + cls) ? document.querySelector('.' + cls).offsetHeight : 0), 0);
+      window.chrome.webview.postMessage({ type: 'resize', h: sum });
+    } catch (err) { }
+  }
+}, 600);
+</script>
+</body>
+</html>

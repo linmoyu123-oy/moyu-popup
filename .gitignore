@@ -1,0 +1,10 @@
+﻿# 编译产物 / 运行库（安装包在 GitHub Release 分发）
+*.exe
+webview2/
+# 日志
+*.log
+# 推广文案（不入库）
+CSDN推广文案.md
+# 系统文件
+Thumbs.db
+Desktop.ini

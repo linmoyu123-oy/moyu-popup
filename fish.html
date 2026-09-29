@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>摸鱼弹窗 - 伪装视频播放器</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%236366f1'/%3E%3Crect x='14' y='18' width='36' height='28' rx='3' fill='white'/%3E%3Crect x='14' y='18' width='36' height='7' fill='%23e5e7eb'/%3E%3Ccircle cx='32' cy='36' r='6' fill='%234ade80'/%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow-y: auto; font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+  :root {
+    --bg: #1e1e2e;
+    --bg-grad: #2a2a4a;
+    --card: #26263a;
+    --card-border: #3a3a55;
+    --text: #e4e4e7;
+    --label: #d1d5db;
+    --muted: #9ca3af;
+    --faint: #8b8b9e;
+    --hint: #6b7280;
+    --input-bg: #1a1a2e;
+    --active-bg: #2d2d5a;
+    --active-text: #ffffff;
+    --btn-bg: #2d2d5a;
+    --btn-border: #4a4a7a;
+    --btn-hover: #3d3d6a;
+    --accent: #6366f1;
+    --accent2: #8b5cf6;
+  }
+  html[data-theme="light"] {
+    --bg: #edf0f7;
+    --bg-grad: #dfe6f5;
+    --card: #ffffff;
+    --card-border: #d9dfec;
+    --text: #1f2430;
+    --label: #3b4453;
+    --muted: #6b7280;
+    --faint: #8b93a5;
+    --hint: #98a0b3;
+    --input-bg: #f3f5fb;
+    --active-bg: #e9edfd;
+    --active-text: #3730a3;
+    --btn-bg: #eef1f8;
+    --btn-border: #ccd3e5;
+    --btn-hover: #e2e7f3;
+    --accent: #4f46e5;
+    --accent2: #7c3aed;
+  }
+  body { background: var(--bg); color: var(--text); transition: background .25s, color .25s; }
+
+  /* ============ 设置视图 ============ */
+  #setup-view {
+    position: fixed; inset: 0;
+    display: flex;
+    background: radial-gradient(circle at 30% 20%, var(--bg-grad) 0%, var(--bg) 60%);
+    padding: 20px;
+    overflow-y: auto;
+    transition: background .25s;
+  }
+  .setup-card {
+    position: relative;
+    width: 100%; max-width: 880px;
+    margin: auto;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 30px 34px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    overflow: hidden;
+    transition: background .25s, border-color .25s;
+  }
+  .setup-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2), #ec4899);
+  }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+  .card-top .head-text { min-width: 0; }
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 30px; }
+  .layout { display: flex; gap: 22px; align-items: flex-start; }
+  .nav { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
+  .nav-item {
+    padding: 11px 14px; border-radius: 8px;
+    border: 1px solid transparent; background: transparent;
+    color: var(--muted); text-align: left; font-size: 14px; cursor: pointer;
+    transition: all .15s;
+  }
+  .nav-item:hover { background: var(--input-bg); color: var(--text); }
+  .nav-item.active { background: var(--active-bg); color: var(--active-text); border-color: var(--card-border); font-weight: 600; }
+  .panels { flex: 1; min-width: 0; }
+  .panel { display: none; animation: panelIn .18s ease; }
+  .panel.active { display: block; }
+  @keyframes panelIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .sec-title {
+    font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: .3px;
+    margin: 2px 0 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .sec-title::before { content: ''; width: 4px; height: 14px; background: var(--accent); border-radius: 2px; }
+  .setup-card h1 {
+    font-size: 22px; font-weight: 600; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .setup-card h1 .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #4ade80; box-shadow: 0 0 12px #4ade80;
+  }
+  .setup-card .sub { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .theme-toggle {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--input-bg);
+    color: var(--text);
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .theme-toggle:hover { border-color: var(--accent); transform: rotate(20deg); }
+  .theme-toggle svg { width: 20px; height: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 14px; color: var(--label); margin-bottom: 7px; font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid2 .field { margin-bottom: 0; }
+  .field input[type=text], .field input[type=url] {
+    width: 100%; padding: 11px 13px;
+    background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); font-size: 14px; outline: none;
+    transition: border-color .15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+
+  .skin-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 4px; }
+  .mode-row { display: flex; gap: 8px; margin-top: 4px; }
+  .mode-opt {
+    padding: 8px 20px; border: 1px solid var(--card-border); border-radius: 6px;
+    background: var(--input-bg); cursor: pointer; font-size: 13px; color: var(--label);
+    transition: all .15s;
+  }
+  .mode-opt:hover { border-color: var(--accent); }
+  .mode-opt.active { border-color: var(--accent); background: var(--active-bg); color: var(--active-text); }
+  .skin-opt {
+    padding: 10px 8px; border: 1px solid var(--card-border); border-radius: 6px;
+    background: var(--input-bg); cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: all .15s;
+  }
+  .skin-opt:hover { border-color: var(--accent); }
+  .skin-opt.active { border-color: var(--accent); background: var(--active-bg); }
+  .skin-opt .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+  .pos-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .pos-opt {
+    padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 5px;
+    background: var(--input-bg); cursor: pointer; font-size: 13px; color: var(--label);
+    transition: all .15s;
+  }
+  .pos-opt:hover { border-color: var(--accent); }
+  .pos-opt.active { border-color: var(--accent); background: var(--active-bg); color: var(--active-text); }
+
+  .opacity-range { width: 100%; margin-top: 4px; accent-color: var(--accent); }
+  .opacity-val { color: var(--faint); font-weight: 600; }
+
+  .checks { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 20px; font-size: 13px; }
+  .checks label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--label); }
+  .checks input { cursor: pointer; }
+
+  .start-btn {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 6px;
+    color: white; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform .1s, box-shadow .15s;
+  }
+  .start-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.4); }
+  .start-btn:active { transform: translateY(0); }
+  .hint { font-size: 12px; color: var(--hint); margin-top: 14px; line-height: 1.7; }
+
+  .hotkey-btn {
+    width: 100%; padding: 10px 12px;
+    background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); font-size: 13px; outline: none; cursor: pointer;
+    font-family: Consolas, monospace; text-align: center;
+    transition: border-color .15s;
+  }
+  .hotkey-btn:hover { border-color: var(--accent); }
+  .hotkey-btn.recording {
+    border-color: #e81123; background: #2a1a2e; color: #fca5a5;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,17,35,.4); }
+    50% { box-shadow: 0 0 0 6px rgba(232,17,35,0); }
+  }
+  .local-row { display: flex; gap: 10px; align-items: center; }
+  .local-btn {
+    padding: 9px 14px;
+    background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 6px;
+    color: var(--text); font-size: 13px; cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+  }
+  .local-btn:hover { background: var(--btn-hover); }
+  .local-filename {
+    font-size: 12px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ============ 伪装弹窗全屏层 ============ */
+  #fake-layer {
+    position: fixed; inset: 0;
+    display: none;
+    background: #000;
+  }
+  #fake-layer.active { display: block; }
+
+  .fake-modal {
+    position: absolute;
+    width: 640px; height: 440px;
+    background: #f0f0f0;
+    border: 1px solid #888;
+    border-radius: 8px 8px 4px 4px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .fm-titlebar {
+    height: 32px;
+    background: linear-gradient(to bottom, #ffffff, #e8e8e8);
+    border-bottom: 1px solid #c8c8c8;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 0 0 10px;
+    cursor: move;
+    flex-shrink: 0;
+  }
+  .fm-title {
+    font-size: 12px; color: #333;
+    display: flex; align-items: center; gap: 6px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .fm-title .t-icon { width: 14px; height: 14px; flex-shrink: 0; }
+  .fm-btns { display: flex; height: 100%; }
+  .fm-btn {
+    width: 46px; height: 32px;
+    border: none; background: transparent;
+    font-size: 11px; color: #333; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fm-btn:hover { background: #e5e5e5; }
+  .fm-btn.close:hover { background: #e81123; color: white; }
+
+  .fm-body {
+    flex: 1; display: flex; flex-direction: column;
+    background: white; overflow: hidden;
+  }
+  .fm-msg {
+    padding: 14px 18px;
+    font-size: 13px; color: #222;
+    display: flex; gap: 12px; align-items: flex-start;
+    flex-shrink: 0;
+  }
+  .fm-msg .m-icon { width: 32px; height: 32px; flex-shrink: 0; }
+  .fm-msg .m-text { line-height: 1.5; }
+  .fm-msg .m-text .big { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+
+  .fm-video {
+    flex: 1; position: relative; margin: 0 14px;
+    background: #000; overflow: hidden;
+    min-height: 0;
+  }
+  .fm-video video, .fm-video iframe {
+    width: 100%; height: 100%; border: none; display: block;
+  }
+
+  .fm-progress { padding: 10px 18px 6px; flex-shrink: 0; }
+  .bar-track { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; }
+  .bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(to right, #0078d4, #107c10);
+    transition: width .3s;
+  }
+  .bar-text {
+    font-size: 11px; color: #666; margin-top: 4px;
+    display: flex; justify-content: space-between;
+  }
+
+  .fm-log {
+    margin: 0 14px 8px;
+    background: #1a1a1a; color: #4af626;
+    font-family: Consolas, monospace; font-size: 10px;
+    padding: 6px 8px; height: 60px; overflow: hidden;
+    line-height: 1.4; border-radius: 2px;
+  }
+
+  .fm-footer {
+    padding: 10px 18px;
+    display: flex; gap: 8px; justify-content: flex-end;
+    background: #f0f0f0;
+    border-top: 1px solid #e0e0e0;
+    flex-shrink: 0;
+  }
+  .fm-action-btn {
+    padding: 6px 22px;
+    border: 1px solid #0078d4;
+    background: #fff;
+    font-size: 12px; color: #000;
+    border-radius: 3px; cursor: pointer;
+    min-width: 88px;
+  }
+  .fm-action-btn.primary { background: #0078d4; color: white; }
+  .fm-action-btn:hover { background: #e5f1fb; }
+  .fm-action-btn.primary:hover { background: #106ebe; }
+
+  .fake-err {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #f0f0f0; border: 1px solid #888; border-radius: 6px;
+    padding: 16px; width: 320px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.4);
+    z-index: 10; display: none;
+  }
+  .fake-err.show { display: block; }
+  .fake-err .err-title { font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+  .fake-err .err-body { font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 12px; }
+  .fake-err button {
+    padding: 5px 20px; border: 1px solid #0078d4; background: #fff;
+    border-radius: 3px; cursor: pointer; font-size: 12px;
+  }
+
+  #tray-dot {
+    position: fixed; bottom: 8px; right: 8px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #4ade80; cursor: pointer;
+    box-shadow: 0 0 8px #4ade80;
+    display: none; z-index: 9999;
+  }
+  #tray-dot.show { display: block; }
+
+  .skin-ad .fm-titlebar { background: linear-gradient(to bottom, #ff6b6b, #ee5a52); }
+  .skin-ad .fm-title, .skin-ad .fm-btn { color: white; }
+  .skin-ad .fm-btn.close:hover { background: #b91c1c; }
+  .skin-ad .fm-body { background: #fff5f5; }
+  .skin-ad .fm-msg .m-text .big { color: #dc2626; }
+
+  .skin-update .fm-titlebar { background: linear-gradient(to bottom, #0078d4, #005a9e); }
+  .skin-update .fm-title, .skin-update .fm-btn { color: white; }
+  .skin-update .fm-btn.close:hover { background: #004578; }
+
+  .skin-disk .fm-titlebar { background: linear-gradient(to bottom, #fbbf24, #d97706); }
+  .skin-disk .fm-title { color: #1f2937; }
+  .skin-disk .fm-btn.close:hover { background: #b45309; color: white; }
+
+  .scanline {
+    position: absolute; left: 0; right: 0; height: 3px;
+    background: linear-gradient(to bottom, transparent, rgba(74,222,128,.6), transparent);
+    animation: scan 2.5s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 设置视图 ===== -->
+<div id="setup-view">
+  <div class="setup-card">
+    <div class="card-top">
+      <div class="head-text">
+        <h1><span class="dot"></span>摸鱼弹窗 · 配置台</h1>
+        <div class="sub">把网页视频包成一个"系统弹窗"。老板路过时按热键瞬间变身为一个小绿点，再按恢复。</div>
+      </div>
+      <button type="button" class="theme-toggle" id="theme-toggle" title="切换白天 / 黑夜">
+        <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M16.9 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+
+    <div class="layout">
+      <div class="nav">
+        <button type="button" class="nav-item active" data-panel="source">内容来源</button>
+        <button type="button" class="nav-item" data-panel="look">外观伪装</button>
+        <button type="button" class="nav-item" data-panel="keys">快捷键</button>
+      </div>
+
+      <div class="panels">
+        <!-- 面板一：内容来源 -->
+        <div class="panel active" id="panel-source">
+          <div class="sec-title">内容来源</div>
+
+          <div class="field">
+            <label>内容类型</label>
+            <div class="mode-row" id="mode-row">
+              <button type="button" class="mode-opt active" data-mode="video">视频</button>
+              <button type="button" class="mode-opt" data-mode="novel">网页小说</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label id="url-label">视频地址（B站 BV号 / YouTube / mp4 直链）</label>
+            <input type="text" id="video-url" placeholder="留空自动播放默认视频 · 或粘贴链接">
+          </div>
+
+          <div class="field" id="local-field">
+            <label>或者：选本地视频文件</label>
+            <div class="local-row">
+              <button type="button" class="local-btn" id="pick-file-btn">选择本地视频...</button>
+              <span class="local-filename" id="local-filename">未选择文件</span>
+            </div>
+            <input type="file" id="local-file" accept="video/*" style="display:none">
+          </div>
+        </div>
+
+        <!-- 面板二：外观伪装 -->
+        <div class="panel" id="panel-look">
+          <div class="sec-title">外观伪装</div>
+
+          <div class="field">
+            <label>伪装皮肤</label>
+            <div class="skin-grid" id="skin-grid">
+              <div class="skin-opt active" data-skin="security">
+                <span class="swatch" style="background:#e81123"></span>安全中心
+              </div>
+              <div class="skin-opt" data-skin="update">
+                <span class="swatch" style="background:#0078d4"></span>系统更新
+              </div>
+              <div class="skin-opt" data-skin="disk">
+                <span class="swatch" style="background:#f59e0b"></span>磁盘空间
+              </div>
+              <div class="skin-opt" data-skin="ad">
+                <span class="swatch" style="background:#ff6b6b"></span>中奖弹窗
+              </div>
+              <div class="skin-opt" data-skin="antivirus">
+                <span class="swatch" style="background:#d9534f"></span>杀毒扫描
+              </div>
+              <div class="skin-opt" data-skin="uac">
+                <span class="swatch" style="background:#f0ad4e"></span>账户控制
+              </div>
+              <div class="skin-opt" data-skin="network">
+                <span class="swatch" style="background:#e67e22"></span>网络错误
+              </div>
+              <div class="skin-opt" data-skin="xp">
+                <span class="swatch" style="background:#0f6cb6"></span>经典 XP
+              </div>
+              <div class="skin-opt" data-skin="edge">
+                <span class="swatch" style="background:#0f9d58"></span>浏览器拦截
+              </div>
+              <div class="skin-opt" data-skin="task">
+                <span class="swatch" style="background:#4a5568"></span>任务计划
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>弹窗位置</label>
+            <div class="pos-grid">
+              <div class="pos-opt active" data-pos="br">右下角</div>
+              <div class="pos-opt" data-pos="bl">左下角</div>
+              <div class="pos-opt" data-pos="tr">右上角</div>
+              <div class="pos-opt" data-pos="tl">左上角</div>
+              <div class="pos-opt" data-pos="center">居中</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>弹窗尺寸</label>
+            <div class="pos-grid">
+              <div class="pos-opt" data-size="s">小</div>
+              <div class="pos-opt active" data-size="m">中</div>
+              <div class="pos-opt" data-size="l">大</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>窗口透明度 <span class="opacity-val" id="opacity-val">100%</span></label>
+            <input type="range" class="opacity-range" id="opacity-range" min="50" max="100" step="5" value="100">
+          </div>
+
+          <div class="field">
+            <label>伪装细节</label>
+            <div class="checks">
+              <label><input type="checkbox" id="opt-progress" checked> 假进度条</label>
+              <label><input type="checkbox" id="opt-log"> 假日志</label>
+              <label><input type="checkbox" id="opt-scan"> 假扫描线</label>
+              <label><input type="checkbox" id="opt-topmost" checked> 窗口置顶</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 面板三：快捷键 -->
+        <div class="panel" id="panel-keys">
+          <div class="sec-title">快捷键</div>
+
+          <div class="field">
+            <label>紧急隐藏键（点一下再按新键）</label>
+            <button type="button" class="hotkey-btn" id="hide-key-btn">Escape</button>
+            <div class="hint" style="margin-top:8px">老板路过时瞬间把弹窗藏成桌面右下角的小绿点，再按一次恢复。</div>
+          </div>
+
+          <div class="field">
+            <label>真退出组合键（点一下再按新键）</label>
+            <button type="button" class="hotkey-btn" id="quit-key-btn">Ctrl+Q</button>
+            <div class="hint" style="margin-top:8px">彻底退出摸鱼状态，回到配置台。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="start-btn" id="start-btn">开始摸鱼</button>
+    <div id="pop-notice" style="display:none; margin-top:12px; padding:10px 12px; background:#1a2e1a; border:1px solid #3a7a3a; border-radius:6px; font-size:13px;"></div>
+    <div class="hint">
+      B站、YouTube 直接贴链接，本地视频拖入或选择文件即可。点开始后会在桌面右下角弹出播放小窗，本窗口可随手关掉。
+    </div>
+  </div>
+</div>
+
+<!-- ===== 伪装弹窗层 ===== -->
+<div id="fake-layer">
+  <div class="fake-modal" id="fake-modal">
+    <div class="fm-titlebar" id="fm-titlebar">
+      <div class="fm-title">
+        <svg class="t-icon" viewBox="0 0 16 16"></svg>
+        <span id="fm-title-text">Windows 安全中心</span>
+      </div>
+      <div class="fm-btns">
+        <button class="fm-btn" id="fm-min">—</button>
+        <button class="fm-btn close" id="fm-close">✕</button>
+      </div>
+    </div>
+    <div class="fm-body">
+      <div class="fm-msg">
+        <svg class="m-icon" viewBox="0 0 32 32"></svg>
+        <div class="m-text">
+          <div class="big" id="fm-big-text">你的设备存在风险</div>
+          <div id="fm-sub-text">Windows 安全中心检测到潜在威胁，建议立即进行系统扫描以保护您的数据。</div>
+        </div>
+      </div>
+      <div class="fm-video" id="fm-video"></div>
+      <div class="fm-progress" id="fm-progress">
+        <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+        <div class="bar-text">
+          <span id="bar-label">正在扫描系统...</span>
+          <span id="bar-pct">0%</span>
+        </div>
+      </div>
+      <div class="fm-log" id="fm-log" style="display:none"></div>
+      <div class="fm-footer">
+        <button class="fm-action-btn" id="fm-cancel">取消</button>
+        <button class="fm-action-btn primary" id="fm-ok">立即扫描</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fake-err" id="fake-err">
+    <div class="err-title" id="err-title">错误</div>
+    <div class="err-body" id="err-body">无法关闭此窗口：系统关键进程正在运行，关闭可能导致数据丢失。</div>
+    <button onclick="document.getElementById('fake-err').classList.remove('show')">确定</button>
+  </div>
+</div>
+
+<div id="tray-dot" title="点我恢复摸鱼窗"></div>
+
+<script>
+// ===== 皮肤配置 =====
+const SKINS = {
+  security: {
+    title: 'Windows 安全中心',
+    big: '你的设备存在风险',
+    sub: 'Windows 安全中心检测到潜在威胁，建议立即进行系统扫描以保护您的数据。',
+    btn: '立即扫描',
+    icon: '<svg viewBox="0 0 16 16"><path fill="#e81123" d="M8 1l6 2v5c0 3.5-2.5 6.7-6 8-3.5-1.3-6-4.5-6-8V3l6-2z"/><path fill="#fff" d="M8 4l3.5 1.2V8c0 2.2-1.6 4.2-3.5 5-1.9-.8-3.5-2.8-3.5-5V5.2L8 4z"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><path fill="#e81123" d="M16 2l12 4v10c0 7-5 13-12 15C9 29 4 23 4 16V6l12-4z"/><path fill="#fff" d="M16 8l7 2.3V16c0 4.4-3.2 8.3-7 9.7-3.8-1.4-7-5.3-7-9.7v-5.7L16 8z"/></svg>',
+    labels: ['正在扫描系统文件...','正在检查注册表...','正在扫描进程...','正在更新病毒库...','正在修复威胁...']
+  },
+  update: {
+    title: 'Windows 更新',
+    big: '正在配置更新',
+    sub: '请勿关闭计算机。这可能需要几分钟时间，系统将自动重启。',
+    btn: '稍后重启',
+    icon: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#0078d4"/><path d="M8 4v4l3 2" stroke="#fff" stroke-width="1.5" fill="none"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0078d4"/><path d="M16 9v8l6 4" stroke="#fff" stroke-width="2" fill="none"/></svg>',
+    labels: ['正在下载更新...','正在安装功能...','正在配置组件...','正在优化系统...','即将完成...']
+  },
+  disk: {
+    title: '本地磁盘 (C:)',
+    big: '磁盘空间不足',
+    sub: '您的 C 盘可用空间不足，某些应用程序可能无法正常运行。建议清理临时文件或扩展磁盘容量。',
+    btn: '磁盘清理',
+    icon: '<svg viewBox="0 0 16 16"><rect x="2" y="5" width="12" height="8" rx="1" fill="#f59e0b"/><rect x="4" y="7" width="8" height="1" fill="#fff"/><rect x="4" y="9" width="5" height="1" fill="#fff"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><rect x="4" y="10" width="24" height="14" rx="2" fill="#f59e0b"/><rect x="8" y="14" width="16" height="2" fill="#fff"/><rect x="8" y="18" width="10" height="2" fill="#fff"/></svg>',
+    labels: ['正在分析磁盘空间...','正在扫描临时文件...','正在计算可回收空间...']
+  },
+  ad: {
+    title: '通知 - 恭喜',
+    big: '恭喜！您被抽中为幸运用户',
+    sub: '您已获得一次免费领取豪华礼品的机会！点击下方按钮立即领取，奖品有限，先到先得！',
+    btn: '立即领取',
+    icon: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#ff6b6b"/><text x="8" y="11" font-size="9" text-anchor="middle" fill="#fff" font-weight="bold">!</text></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#ff6b6b"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-weight="bold">!</text></svg>',
+    labels: ['正在加载奖品...','即将揭晓...']
+  },
+  antivirus: {
+    title: '安全防护 - 实时监控',
+    big: '检测到 3 项安全威胁',
+    sub: '建议立即处理以保护电脑安全。处理过程在后台进行，不影响其他程序。',
+    btn: '立即处理',
+    icon: '<svg viewBox="0 0 16 16"><path fill="#d9534f" d="M8 1l6 2v5c0 3.5-2.5 6.7-6 8-3.5-1.3-6-4.5-6-8V3l6-2z"/><path fill="#fff" d="M8 5v4"/><circle cx="8" cy="11.5" r="1" fill="#fff"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><path fill="#d9534f" d="M16 2l12 4v10c0 7-5 13-12 15C9 29 4 23 4 16V6l12-4z"/><path fill="#fff" d="M16 9c-1.2 0-2.1.9-2.1 2.1v.6c0 .4.3.7.7.7.4 0 .7-.3.7-.7v-.6c0-.4.4-.7.8-.7s.8.3.8.7v.6c0 .4.3.7.7.7.4 0 .7-.3.7-.7v-.6c0-1.2-.9-2.1-2.1-2.1zm0 4.4c-.6 0-1 .4-1 .9s.4.9 1 .9 1-.4 1-.9-.4-.9-1-.9z"/></svg>',
+    labels: ['正在隔离威胁文件...','正在修复注册表项...','正在更新病毒库...','威胁已隔离，系统安全']
+  },
+  uac: {
+    title: '用户账户控制 - 请确认',
+    big: '是否允许此应用对你的设备进行更改？',
+    sub: '此操作需要管理员权限。已验证发布者身份，请确认是否继续。',
+    btn: '是',
+    icon: '<svg viewBox="0 0 16 16"><path fill="#f0ad4e" d="M8 1l6 2v5c0 3.5-2.5 6.7-6 8-3.5-1.3-6-4.5-6-8V3l6-2z"/><path fill="#fff" d="M8 4v4"/><circle cx="8" cy="10.5" r="1" fill="#fff"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><path fill="#f0ad4e" d="M16 3l11 4v8c0 5.8-4.1 10.4-11 13C9.1 25.4 5 20.8 5 15V7l11-4z"/><path fill="#fff" d="M16 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.5 1.2 2.7 2.7 2.7s2.7-1.2 2.7-2.7c0-1.5-1.2-2.7-2.7-2.7zm0 5.8c-1.8 0-5.4 1.1-5.4 3.7v1.1h10.8v-1.1c0-2.6-3.6-3.7-5.4-3.7z"/></svg>',
+    labels: ['正在验证管理员权限...','正在检查发布者证书...','操作记录已写入安全日志']
+  },
+  network: {
+    title: '网络诊断 - 连接异常',
+    big: '网络连接异常',
+    sub: '无法访问部分服务，正在自动检测网络配置并尝试修复，请稍候。',
+    btn: '重新连接',
+    icon: '<svg viewBox="0 0 16 16"><path fill="#e67e22" d="M8 12.5c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5-.7-1.5-1.5-1.5zm5-5.5c-2.8-2.8-7.2-2.8-10 0l1.4 1.4c2-2 5.2-2 7.2 0l1.4-1.4zM8 11l2.1-2.1c-1.2-1.2-3-1.2-4.2 0L8 11z"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><path fill="#e67e22" d="M16 21.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm7.4-8.9c-4.1-4.1-10.7-4.1-14.8 0l2.1 2.1c2.9-2.9 7.7-2.9 10.6 0l2.1-2.1zm-4.2 4.2c-1.8-1.8-4.6-1.8-6.4 0L16 19.4l2.1-2.1c1.2-1.2 3.1-1.2 4.2 0l2.1-2.1z"/></svg>',
+    labels: ['正在诊断网络配置...','正在检查 DNS 解析...','正在重置网络适配器...','网络连接已恢复']
+  },
+  xp: {
+    title: '系统消息 - Windows XP',
+    big: '系统检测到异常项目',
+    sub: '请选择操作以继续。此消息来自 Windows XP 系统服务。',
+    btn: '确定',
+    icon: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#0f6cb6"/><path fill="#fff" d="M8 4c-.9 0-1.5.6-1.5 1.5V11c0 .9.6 1.5 1.5 1.5s1.5-.6 1.5-1.5V5.5C9.5 4.6 8.9 4 8 4zm0 9.2c-.7 0-1.3.6-1.3 1.3s.6 1.3 1.3 1.3 1.3-.6 1.3-1.3-.6-1.3-1.3-1.3z"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#0f6cb6"/><path fill="#fff" d="M16 8c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2s2-.9 2-2v-8c0-1.1-.9-2-2-2zm0 14.5c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5-.7-1.5-1.5-1.5z"/></svg>',
+    labels: ['正在检查系统组件...','正在验证系统文件...','正在收集错误信息...']
+  },
+  edge: {
+    title: 'Microsoft Edge - 安全提示',
+    big: '此网站已被安全拦截',
+    sub: '您访问的网页存在潜在风险，Edge 已阻止此页面加载以保护您的设备。',
+    btn: '了解详情',
+    icon: '<svg viewBox="0 0 16 16"><path fill="#0f9d58" d="M8 1l6 2v5c0 3.5-2.5 6.7-6 8-3.5-1.3-6-4.5-6-8V3l6-2z"/><path fill="#fff" d="M8 5v4"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><path fill="#0f9d58" d="M16 3l12 4v8c0 7-5 13-12 15-7-2-12-8-12-15V7l12-4z"/><path fill="#fff" d="M16 9c-3.3 0-6 2.7-6 6 0 2 .9 3.7 2.3 4.8l-1.4 1.9c-.1.1 0 .3.2.3h7.8c.2 0 .3-.2.2-.3l-1.4-1.9C19.1 18.7 22 17 22 15c0-3.3-2.7-6-6-6z"/></svg>',
+    labels: ['正在分析页面风险...','正在匹配恶意特征库...','安全拦截已生效']
+  },
+  task: {
+    title: '任务计划程序 - 已启动',
+    big: '定时维护任务已启动',
+    sub: '系统将在后台执行例行维护，期间不影响其他程序运行。',
+    btn: '查看详情',
+    icon: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="#4a5568" stroke-width="1.5"/><path fill="#4a5568" d="M8 4.5V8l3 1.5"/></svg>',
+    bigIcon: '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="#4a5568" stroke-width="3"/><path fill="#4a5568" d="M16 9v7l5 3"/></svg>',
+    labels: ['正在初始化维护任务...','正在清理系统缓存...','维护任务执行中...']
+  }
+};
+
+let currentSkin = 'security';
+let currentPos = 'br';
+let currentSize = 'm';
+let currentOpacity = 1.0;
+let currentType = 'video';
+let progressTimer = null;
+let logTimer = null;
+let hidden = false;
+
+// ===== 主题切换（白天 / 黑夜） =====
+const themeBtn = document.getElementById('theme-toggle');
+let theme = 'dark';
+try { theme = localStorage.getItem('moyu-theme') || 'dark'; } catch (e) {}
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelector('.ico-moon').style.display = t === 'dark' ? '' : 'none';
+  document.querySelector('.ico-sun').style.display = t === 'light' ? '' : 'none';
+}
+applyTheme(theme);
+themeBtn.addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  applyTheme(theme);
+  try { localStorage.setItem('moyu-theme', theme); } catch (e) {}
+});
+
+// ===== 左侧导航切换面板 =====
+document.querySelectorAll('.nav-item').forEach(nav => {
+  nav.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    nav.classList.add('active');
+    document.getElementById('panel-' + nav.dataset.panel).classList.add('active');
+  });
+});
+
+// ===== 透明度滑块 =====
+const opacityRange = document.getElementById('opacity-range');
+const opacityVal = document.getElementById('opacity-val');
+opacityRange.addEventListener('input', () => {
+  currentOpacity = opacityRange.value / 100;
+  opacityVal.textContent = opacityRange.value + '%';
+});
+
+// ===== 位置 / 尺寸选择 =====
+document.querySelectorAll('.pos-opt').forEach(el => {
+  el.addEventListener('click', () => {
+    el.parentElement.querySelectorAll('.pos-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    if (el.dataset.pos) currentPos = el.dataset.pos;
+    if (el.dataset.size) currentSize = el.dataset.size;
+  });
+});
+
+// ===== 皮肤选择 =====
+document.querySelectorAll('.skin-opt').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.skin-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    currentSkin = el.dataset.skin;
+  });
+});
+
+// ===== 内容类型切换（视频 / 网页小说） =====
+document.querySelectorAll('#mode-row .mode-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-row .mode-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentType = btn.dataset.mode;
+    const label = document.getElementById('url-label');
+    const urlInput2 = document.getElementById('video-url');
+    const localField = document.getElementById('local-field');
+    if (currentType === 'novel') {
+      label.textContent = '小说网页地址（留空打开内置笔趣阁）';
+      urlInput2.placeholder = '留空打开笔趣阁 https://www.biquga.com/ · 或粘贴其他小说网页链接';
+      if (localField) localField.style.display = 'none';
+    } else {
+      label.textContent = '视频地址（B站 BV号 / YouTube / mp4 直链，直接贴链接）';
+      urlInput2.placeholder = '留空自动播放默认视频 · 或粘贴 B站 / YouTube / mp4 链接';
+      if (localField) localField.style.display = '';
+    }
+  });
+});
+
+// ===== 视频 URL 解析 =====
+function buildVideoEmbed(rawUrl) {
+  let url = rawUrl.trim();
+
+  const iframeSrcMatch = url.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+  if (iframeSrcMatch) url = iframeSrcMatch[1];
+
+  // B 站
+  const bvMatch = url.match(/(BV[0-9A-Za-z]+)/);
+  if (bvMatch) {
+    return {
+      type: 'iframe',
+      src: 'https://player.bilibili.com/player.html?bvid=' + bvMatch[1] + '&autoplay=1&high_quality=1&danmaku=0'
+    };
+  }
+
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
+  if (ytMatch) {
+    return {
+      type: 'iframe',
+      src: 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&rel=0'
+    };
+  }
+  // mp4 直链
+  if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) {
+    return { type: 'video', src: url };
+  }
+  return { type: 'iframe', src: url };
+}
+
+// ===== 本地文件选择 =====
+let localFileUrl = null;
+const fileInput = document.getElementById('local-file');
+document.getElementById('pick-file-btn').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    if (localFileUrl) URL.revokeObjectURL(localFileUrl);
+    localFileUrl = URL.createObjectURL(fileInput.files[0]);
+    document.getElementById('local-filename').textContent = fileInput.files[0].name;
+    document.getElementById('video-url').value = '';
+  }
+});
+const urlInput = document.getElementById('video-url');
+urlInput.addEventListener('dragover', e => { e.preventDefault(); urlInput.style.borderColor = '#4ade80'; });
+urlInput.addEventListener('dragleave', () => { urlInput.style.borderColor = ''; });
+urlInput.addEventListener('drop', e => {
+  e.preventDefault();
+  urlInput.style.borderColor = '';
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video/')) {
+    if (localFileUrl) URL.revokeObjectURL(localFileUrl);
+    localFileUrl = URL.createObjectURL(f);
+    document.getElementById('local-filename').textContent = f.name;
+    urlInput.value = '';
+  }
+});
+
+// ===== 开始摸鱼 =====
+function openDesktopPlayer(url, skin, type) {
+  const notice = document.getElementById('pop-notice');
+  if (window.chrome && window.chrome.webview) {
+    // 通过 WebView2 通道直接通知主程序弹出桌面小窗（无需本地 HTTP 服务）
+    window.chrome.webview.postMessage({
+      action: 'open', url: url, skin: skin, type: type || 'video',
+      pos: currentPos, size: currentSize, opacity: currentOpacity,
+      topmost: (document.getElementById('opt-topmost').checked ? 1 : 0)
+    });
+    notice.style.display = 'block';
+    notice.style.color = '#4ade80';
+    notice.textContent = '已在桌面弹出播放窗口，本窗口可以关掉了。';
+  } else {
+    notice.style.display = 'block';
+    notice.style.color = '#f87171';
+    notice.textContent = '请通过 摸鱼弹窗.exe 启动本工具（在浏览器里无法弹出桌面窗口）。';
+  }
+}
+
+const DEFAULT_URL = 'https://www.bilibili.com/video/BV1GJ411x7h7';
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  const input = document.getElementById('video-url').value.trim();
+  let url;
+  if (currentType === 'novel') {
+    url = input || 'https://www.biquga.com/';
+  } else {
+    url = localFileUrl || input || DEFAULT_URL;
+  }
+
+  // 在线链接 -> 桌面无边框弹窗；本地文件 -> 页面内播放
+  if (/^https?:\/\//i.test(url)) {
+    openDesktopPlayer(url, currentSkin, currentType);
+  } else {
+    showInPagePlayer(url);
+  }
+});
+
+function showInPagePlayer(url) {
+  const skin = SKINS[currentSkin];
+  const modal = document.getElementById('fake-modal');
+  const videoBox = document.getElementById('fm-video');
+
+  modal.className = 'fake-modal skin-' + currentSkin;
+  document.querySelector('.t-icon').outerHTML = skin.icon.replace('<svg', '<svg class="t-icon"');
+  document.querySelector('.m-icon').outerHTML = skin.bigIcon.replace('<svg', '<svg class="m-icon"');
+  document.getElementById('fm-title-text').textContent = skin.title;
+  document.getElementById('fm-big-text').textContent = skin.big;
+  document.getElementById('fm-sub-text').textContent = skin.sub;
+  document.getElementById('fm-ok').textContent = skin.btn;
+
+  videoBox.innerHTML = '';
+  const embed = buildVideoEmbed(url);
+  if (embed.type === 'video') {
+    const v = document.createElement('video');
+    v.src = embed.src; v.autoplay = true; v.controls = true; v.loop = true; v.playsInline = true;
+    videoBox.appendChild(v);
+  } else {
+    const f = document.createElement('iframe');
+    f.src = embed.src;
+    f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+    f.allowFullscreen = true;
+    f.referrerPolicy = 'unsafe-url';
+    videoBox.appendChild(f);
+  }
+
+  const useProgress = document.getElementById('opt-progress').checked;
+  const progBox = document.getElementById('fm-progress');
+  progBox.style.display = useProgress ? 'block' : 'none';
+  if (useProgress) startProgress(skin);
+
+  const useLog = document.getElementById('opt-log').checked;
+  const logBox = document.getElementById('fm-log');
+  logBox.style.display = useLog ? 'block' : 'none';
+  if (useLog) startLog();
+
+  if (document.getElementById('opt-scan').checked) {
+    const sl = document.createElement('div');
+    sl.className = 'scanline';
+    videoBox.appendChild(sl);
+  }
+
+  modal.style.left = (window.innerWidth/2 - 320) + 'px';
+  modal.style.top = (window.innerHeight/2 - 220) + 'px';
+
+  document.getElementById('setup-view').style.display = 'none';
+  document.getElementById('fake-layer').classList.add('active');
+}
+
+// ===== 假进度条 =====
+function startProgress(skin) {
+  let pct = 0;
+  const bar = document.getElementById('bar-fill');
+  const pctEl = document.getElementById('bar-pct');
+  const labelEl = document.getElementById('bar-label');
+  clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    pct += Math.random() * 3;
+    if (pct > 100) pct = 0;
+    bar.style.width = pct + '%';
+    pctEl.textContent = Math.floor(pct) + '%';
+    const idx = Math.min(skin.labels.length - 1, Math.floor(pct / 100 * skin.labels.length));
+    labelEl.textContent = skin.labels[idx];
+  }, 400);
+}
+
+// ===== 假日志 =====
+const LOG_LINES = [
+  '[INFO] 初始化安全扫描引擎...',
+  '[INFO] 加载病毒库签名 v2026.09.29...',
+  '[INFO] 扫描 C:\\Windows\\System32 ...',
+  '[WARN] 发现可疑活动 cookies.exe',
+  '[INFO] 已隔离威胁项 #0042',
+  '[INFO] 扫描用户文档...',
+  '[INFO] 检查启动项...',
+  '[INFO] 修复注册表项 HKCU\\Software...',
+  '[OK] 系统关键文件完整性校验通过',
+  '[INFO] 优化系统服务...',
+  '[OK] 扫描完成，未发现高危威胁',
+  '[INFO] 正在生成报告...'
+];
+function startLog() {
+  const box = document.getElementById('fm-log');
+  clearInterval(logTimer);
+  let i = 0;
+  logTimer = setInterval(() => {
+    const line = document.createElement('div');
+    line.textContent = LOG_LINES[i % LOG_LINES.length];
+    box.appendChild(line);
+    while (box.children.length > 8) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+    i++;
+  }, 900);
+}
+
+// ===== 拖动弹窗 =====
+const titlebar = document.getElementById('fm-titlebar');
+const modal = document.getElementById('fake-modal');
+let drag = null;
+titlebar.addEventListener('mousedown', e => {
+  if (e.target.classList.contains('fm-btn')) return;
+  const rect = modal.getBoundingClientRect();
+  drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+});
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+  let x = e.clientX - drag.dx;
+  let y = e.clientY - drag.dy;
+  x = Math.max(-modal.offsetWidth + 80, Math.min(window.innerWidth - 80, x));
+  y = Math.max(0, Math.min(window.innerHeight - 40, y));
+  modal.style.left = x + 'px';
+  modal.style.top = y + 'px';
+});
+document.addEventListener('mouseup', () => drag = null);
+
+// ===== 假按钮 =====
+document.getElementById('fm-close').addEventListener('click', () => {
+  document.getElementById('err-title').textContent = '无法关闭';
+  document.getElementById('err-body').textContent = '此窗口由系统关键进程打开，无法关闭。若需退出，请等待当前任务完成。';
+  document.getElementById('fake-err').classList.add('show');
+});
+document.getElementById('fm-min').addEventListener('click', hideModal);
+document.getElementById('fm-cancel').addEventListener('click', () => {
+  document.getElementById('err-title').textContent = '操作受限';
+  document.getElementById('err-body').textContent = '取消失败：扫描任务正在后台运行，无法中途取消。';
+  document.getElementById('fake-err').classList.add('show');
+});
+document.getElementById('fm-ok').addEventListener('click', () => {
+  document.getElementById('err-title').textContent = '正在处理';
+  document.getElementById('err-body').textContent = '任务已提交，请耐心等待。系统将在后台自动完成。';
+  document.getElementById('fake-err').classList.add('show');
+});
+
+// ===== 隐藏 / 显示 / 退出 =====
+function hideModal() {
+  modal.style.display = 'none';
+  document.getElementById('fake-err').classList.remove('show');
+  document.getElementById('tray-dot').classList.add('show');
+  hidden = true;
+}
+function showModal() {
+  modal.style.display = 'flex';
+  document.getElementById('tray-dot').classList.remove('show');
+  hidden = false;
+}
+function quitAll() {
+  clearInterval(progressTimer);
+  clearInterval(logTimer);
+  document.getElementById('fake-layer').classList.remove('active');
+  document.getElementById('tray-dot').classList.remove('show');
+  document.getElementById('setup-view').style.display = 'flex';
+  modal.style.display = 'flex';
+  document.getElementById('fm-video').innerHTML = '';
+  hidden = false;
+}
+document.getElementById('tray-dot').addEventListener('click', showModal);
+
+// ===== 快捷键配置与录制 =====
+let hideCombo = 'Escape';
+let quitCombo = 'Ctrl+Q';
+let recordingTarget = null;
+
+function formatKey(e) {
+  const parts = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Meta');
+  let key = e.key;
+  if (key === ' ') key = 'Space';
+  parts.push(key);
+  return parts.join('+');
+}
+function matchKey(e, combo) {
+  const parts = combo.split('+');
+  const key = parts.pop();
+  let eKey = e.key;
+  if (eKey === ' ') eKey = 'Space';
+  return eKey === key &&
+         e.ctrlKey === parts.includes('Ctrl') &&
+         e.altKey === parts.includes('Alt') &&
+         e.shiftKey === parts.includes('Shift') &&
+         e.metaKey === parts.includes('Meta');
+}
+function bindRecorder(btn) {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.hotkey-btn.recording').forEach(b => {
+      if (b !== btn) { b.classList.remove('recording'); b.textContent = b.dataset.orig; }
+    });
+    if (btn.classList.contains('recording')) {
+      btn.classList.remove('recording');
+      btn.textContent = btn.dataset.orig;
+      recordingTarget = null;
+      return;
+    }
+    btn.dataset.orig = btn.textContent;
+    btn.textContent = '请按键...';
+    btn.classList.add('recording');
+    recordingTarget = btn;
+  });
+}
+bindRecorder(document.getElementById('hide-key-btn'));
+bindRecorder(document.getElementById('quit-key-btn'));
+
+document.addEventListener('keydown', e => {
+  if (recordingTarget) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (['Control','Alt','Shift','Meta'].includes(e.key)) return;
+    const combo = formatKey(e);
+    recordingTarget.textContent = combo;
+    recordingTarget.classList.remove('recording');
+    if (recordingTarget.id === 'hide-key-btn') hideCombo = combo;
+    else quitCombo = combo;
+    recordingTarget = null;
+    return;
+  }
+  if (matchKey(e, quitCombo)) {
+    e.preventDefault();
+    quitAll();
+    return;
+  }
+  if (matchKey(e, hideCombo)) {
+    e.preventDefault();
+    if (hidden) showModal(); else hideModal();
+  }
+});
+</script>
+</body>
+</html>
