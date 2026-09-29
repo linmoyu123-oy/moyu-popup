@@ -21,6 +21,20 @@
 - **伪装细节**：假进度条、假日志滚动、假扫描线，越看越真
 - **单文件安装包**：0.97MB，一个 exe 自带全部运行文件，双击安装即用
 
+## 📸 截图展示
+
+| 视频模式 | 小说模式 |
+| --- | --- |
+| ![视频模式](screenshots/1-video.png) | ![小说模式](screenshots/2-novel.png) |
+
+| 伪装弹窗效果 | 外观伪装设置 |
+| --- | --- |
+| ![伪装弹窗](screenshots/3-popup.png) | ![外观伪装](screenshots/4-skins.png) |
+
+| 快捷键设置 |
+| --- |
+| ![快捷键](screenshots/5-hotkeys.png) |
+
 ## 🚀 快速开始
 
 1. 下载安装包 `moyu-popup-setup.exe`（见 Release）

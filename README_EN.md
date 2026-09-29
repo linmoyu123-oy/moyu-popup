@@ -19,6 +19,20 @@ A desktop utility written in C# (WinForms + WebView2). Double-click the exe to o
 - **Camouflage details**: fake progress bars, fake log scrolling, fake scan lines
 - **Single-file installer**: 0.97MB, one exe bundles everything, double-click to install
 
+## 📸 Screenshots
+
+| Video mode | Novel mode |
+| --- | --- |
+| ![Video mode](screenshots/1-video.png) | ![Novel mode](screenshots/2-novel.png) |
+
+| Camouflaged popup | Skins & appearance |
+| --- | --- |
+| ![Popup](screenshots/3-popup.png) | ![Skins](screenshots/4-skins.png) |
+
+| Hotkeys |
+| --- |
+| ![Hotkeys](screenshots/5-hotkeys.png) |
+
 ## 🚀 Quick Start
 
 1. Download the installer `moyu-popup-setup.exe` (see Releases)
